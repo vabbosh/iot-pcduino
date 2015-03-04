@@ -5,3 +5,4 @@ The app reports back on 2 kinds of telemetries from the Robot:<p>
 <b>1- The speed of Robot through its wheel encoders.</b><p>
 <b>2- The distance of an object in front of the Robot through infrared sensor (2-80cm range).</b><p>
 
+
