@@ -1,0 +1,18 @@
+{
+  "name": "iot_robot",
+  "description": "IBM Internet of Things cloud client example",
+  "homepage": "http://internetofthings.ibmcloud.com",
+  "repository" : {
+    "type" : "git",
+  	"url" : "http://github.com/vabbosh/iot-pcduino.git"
+  },
+  "author": "IBM",
+  "dependencies": {
+    "async": "0.7.0",
+    "getmac": "1.0.6",
+    "mqtt": "0.3.12",
+    "iotduino": "0.1.8",
+    "properties": "1.2.1"
+  },
+  "engine": "node >= 0.10.0"
+}
