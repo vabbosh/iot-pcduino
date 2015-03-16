@@ -7,8 +7,7 @@
 // http://www.eclipse.org/legal/epl-v10.html 
 //
 // Contributors:
-//  IBM - Initial Contribution
-//      - update for iot-2, registration and commands
+//  Vincent Abbosh (IBM) - Initial Contribution
 //*****************************************************************************
 
 // IoT Cloud Example Client
@@ -29,6 +28,7 @@ var s_port = "8883";
 var pub_topic = "iot-2/evt/sample/fmt/json";
 var sub_topic_stop = "iot-2/cmd/stop/fmt/json";
 var sub_topic_move = "iot-2/cmd/move/fmt/json";
+var sub_topic_turn = "iot-2/cmd/turn/fmt/json";
 var qs_org = "quickstart";
 var reg_domain = ".messaging.internetofthings.ibmcloud.com";
 var qs_host = "quickstart.messaging.internetofthings.ibmcloud.com";
@@ -38,7 +38,7 @@ var configFile = "./device.cfg";
 
 var caCerts = ["./IoTFoundation.pem", "IoTFoundation-CA.pem"];
 
-var CRITICAL_DIST = 15;
+var CRITICAL_DIST = 10;
 
 // globals
 var qs_mode = true;
@@ -106,6 +106,22 @@ function moveBackward() {
   	duino.digitalWrite(E2, duino.PinState.HIGH);
 }
 
+function turn(left, angle) {
+	duino.digitalWrite(M1, left ? duino.PinState.LOW : duino.PinState.HIGH);
+  	duino.digitalWrite(M2, left ? duino.PinState.HIGH : duino.PinState.LOW);
+  	
+  	duino.digitalWrite(E1, duino.PinState.HIGH);
+  	duino.digitalWrite(E2, duino.PinState.HIGH);
+
+	var quarters = Math.round((angle * 4.0)/360.0);
+	while(duino.pulseIn( speedPin, duino.PinState.HIGH, 1000000) && (quarters > 0)) {
+		quarters = quarters -1;
+	}
+	stopMotor();
+	setRobotData(getDistance(), getSpeed(), true);
+}
+
+
 function stopMotor() {
 	duino.digitalWrite(E1, duino.PinState.LOW);
   	duino.digitalWrite(E2, duino.PinState.LOW);
@@ -114,22 +130,25 @@ function stopMotor() {
 function loop(direction) {
 	async.whilst(
 		function() {
-			return ((getDistance() > CRITICAL_DIST) && !stopFlag);
+			return (((getDistance() > CRITICAL_DIST) || direction == 'backward') && !stopFlag);
 		},
 		function(callback) {
 			setTimeout(function() {
-					if (direction == 'forward')
+					if (direction == 'forward') {
 						moveForeward();
-					else
+						setRobotData(getDistance(), getSpeed(), false);
+					}
+					else if (direction == 'backward') {
 						moveBackward();
-						
-					displayData(getDistance(), getSpeed())
+						setRobotData(getDistance(), -1 * getSpeed(), false);
+					}
 					callback(null);
 				}, 150);
 		},
 		function(error) {
 			console.log("Done! ");
 			stopMotor();
+			setRobotData(getDistance(), getSpeed(), true);
 			if (getDistance() <= CRITICAL_DIST)
 				process.exit(0);
 		});
@@ -147,12 +166,13 @@ robotData.publish = function() {
 
 	if (robotData.d.hasOwnProperty("dist")) {
 		client.publish(pub_topic, robotData.toJson());
-		console.log(pub_topic, robotData.toJson()); // trace
+		//console.log(pub_topic, robotData.toJson()); // trace
 	}
 };
 
-function displayData(dist, speed){
-	console.log("Distance is: " + dist + ", Speed is: " + speed);
+function setRobotData(dist, speed, logit){
+	if (logit)
+		console.log("Distance is: " + dist + ", Speed is: " + speed);
 	robotData.d.dist  = parseInt(dist);
 	robotData.d.speed = parseFloat(speed);
 }
@@ -172,6 +192,12 @@ function doCommand(topic, message, packet) {
 		stopFlag = false; 
 		var payload = JSON.parse(message);
 		loop(payload.direction);
+		break;
+	case "turn":
+		stopFlag = true;
+		setTimeout(function(){}, 500);
+		var payload = JSON.parse(message);
+		turn(payload.left, payload.angle);
 		break;
 	case "stop":
 		stopFlag = true;
@@ -278,6 +304,10 @@ async.series([
 						console.log('Subscribed to ' + sub_topic_stop);
 						//callback();
 					});
+				client.subscribe(sub_topic_turn, { qos: 0 }, function(err, granted) { 
+						if (err) throw err;
+						console.log('Subscribed to ' + sub_topic_turn);
+					});
 				client.subscribe(sub_topic_move, { qos: 0 }, function(err, granted) { 
 						if (err) throw err;
 						console.log('Subscribed to ' + sub_topic_move);
@@ -293,6 +323,6 @@ async.series([
 			setTimeout(callback, 1000);
 			setInterval(function(data) {
 					data.publish();
-				}, 1000, robotData);
+				}, 500, robotData);
 		}
 ]);
